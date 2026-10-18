@@ -1,0 +1,8 @@
+target/
+out/
+*.class
+.idea/
+.vscode/
+*.iml
+# keep your DB password out of GitHub
+src/main/resources/db.properties
