@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkillOrbit — Developer Growth Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root{
+    --bg: #12151a;
+    --surface: #1b1f26;
+    --surface-2: #222833;
+    --border: #2a2f38;
+    --text: #e9e6dd;
+    --text-muted: #8b92a0;
+    --accent: #e8a33d;
+    --accent-soft: rgba(232,163,61,0.14);
+    --green: #6fcf97;
+    --green-soft: rgba(111,207,151,0.14);
+    --red: #eb5757;
+    --red-soft: rgba(235,87,87,0.14);
+    --teal: #4fb3a9;
+    --teal-soft: rgba(79,179,169,0.14);
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --radius: 10px;
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    display:flex;
+    min-height:100vh;
+  }
+  ::selection{ background: var(--accent-soft); color: var(--accent); }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background: var(--border); border-radius:4px; }
+
+  a, button, input, textarea, select{ font-family: inherit; color: inherit; }
+  button{ cursor:pointer; }
+  :focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width: 240px;
+    flex-shrink:0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    display:flex;
+    flex-direction:column;
+    gap: 28px;
+  }
+  .brand{ padding: 0 8px; }
+  .brand .logo{
+    font-family: var(--mono);
+    font-weight:700;
+    font-size: 18px;
+    letter-spacing: 0.5px;
+    color: var(--text);
+  }
+  .brand .logo span{ color: var(--accent); }
+  .brand .tagline{
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--teal);
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow:hidden;
+    text-overflow: ellipsis;
+  }
+  .nav{ display:flex; flex-direction:column; gap: 2px; }
+  .nav-item{
+    display:flex;
+    align-items:center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 7px;
+    background: transparent;
+    border: none;
+    text-align:left;
+    font-size: 13.5px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    transition: background .15s, color .15s;
+  }
+  .nav-item .bullet{ color: var(--border); font-size: 14px; width: 10px; }
+  .nav-item:hover{ background: var(--surface-2); color: var(--text); }
+  .nav-item.active{ background: var(--accent-soft); color: var(--accent); }
+  .nav-item.active .bullet{ color: var(--accent); }
+
+  .sidebar-footer{
+    margin-top:auto;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .ghost-btn{
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 8px 10px;
+    border-radius: 7px;
+    font-family: var(--mono);
+    text-align:left;
+  }
+  .ghost-btn:hover{ color: var(--text); border-color: #3a4150; }
+
+  /* ---------- Main ---------- */
+  .main{
+    flex:1;
+    min-width:0;
+    padding: 32px 40px 60px;
+    max-width: 1080px;
+    overflow-y: auto;
+  }
+  .view{ display:none; animation: fadeIn .25s ease; }
+  .view.active{ display:block; }
+  @keyframes fadeIn{ from{ opacity:0; transform: translateY(4px);} to{opacity:1; transform:none;} }
+
+  .view-header{ margin-bottom: 28px; }
+  .view-header h1{
+    font-family: var(--mono);
+    font-size: 22px;
+    margin: 0 0 6px;
+    letter-spacing: 0.2px;
+  }
+  .view-header p{ margin:0; color: var(--text-muted); font-size: 13.5px; }
+
+  .card{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  /* ---------- Dashboard ---------- */
+  .stat-grid{
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .stat-card{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .stat-card .num{
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight:700;
+    color: var(--accent);
+  }
+  .stat-card .label{ font-size: 12px; color: var(--text-muted); margin-top:4px; }
+  .dash-grid{ display:grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+  @media (max-width: 900px){ .dash-grid{ grid-template-columns: 1fr; } .stat-grid{ grid-template-columns: repeat(2,1fr); } }
+
+  .section-title{
+    font-family: var(--mono);
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin: 0 0 14px;
+  }
+
+  /* ---------- Forms ---------- */
+  .form-grid{ display:grid; gap: 12px; }
+  label{ font-size: 12.5px; color: var(--text-muted); display:block; margin-bottom:5px; }
+  input[type=text], input[type=date], input[type=number], textarea, select{
+    width:100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 9px 11px;
+    font-size: 13.5px;
+  }
+  textarea{ resize:vertical; min-height: 80px; }
+  .row{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+  .row3{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; }
+  @media (max-width: 700px){ .row, .row3{ grid-template-columns: 1fr; } }
+
+  .btn{
+    background: var(--accent);
+    color: #1a1408;
+    border: none;
+    font-weight:600;
+    font-size: 13.5px;
+    padding: 10px 16px;
+    border-radius: 7px;
+    font-family: var(--mono);
+  }
+  .btn:hover{ filter: brightness(1.08); }
+  .btn-outline{
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12.5px;
+    padding: 7px 12px;
+    border-radius: 7px;
+  }
+  .btn-outline:hover{ color: var(--text); border-color: #3a4150; }
+  .btn-danger{ color: var(--red); }
+
+  /* ---------- Journal timeline ---------- */
+  .timeline{ position:relative; margin-top: 22px; padding-left: 26px; }
+  .timeline::before{
+    content:'';
+    position:absolute; left: 6px; top:4px; bottom:4px;
+    width: 1px; background: var(--border);
+  }
+  .commit{ position:relative; padding-bottom: 22px; }
+  .commit:last-child{ padding-bottom:0; }
+  .commit::before{
+    content:'';
+    position:absolute; left:-26px; top: 4px;
+    width:11px; height:11px; border-radius:50%;
+    background: var(--bg); border: 2px solid var(--accent);
+  }
+  .commit-head{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .commit-hash{ font-family: var(--mono); color: var(--teal); font-size: 12.5px; }
+  .commit-date{ font-family: var(--mono); color: var(--text-muted); font-size: 11.5px; }
+  .commit-title{ font-weight:600; font-size: 14.5px; margin: 4px 0 6px; }
+  .commit-body{ font-size: 13px; color: var(--text-muted); line-height:1.5; white-space: pre-wrap; }
+  .chip-row{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .chip{
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  .diffstat{ font-family: var(--mono); font-size:11.5px; }
+  .diffstat .plus{ color: var(--green); }
+  .commit-actions{ margin-top:8px; }
+  .commit-actions button{ background:none; border:none; color: var(--text-muted); font-size:11.5px; padding:0; }
+  .commit-actions button:hover{ color: var(--red); }
+
+  .empty-state{
+    text-align:center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-size: 13.5px;
+  }
+  .empty-state .glyph{ font-family: var(--mono); font-size: 22px; color: var(--border); margin-bottom:10px; }
+
+  /* ---------- Skills ---------- */
+  .skill-row{
+    display:flex; align-items:center; gap:14px;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+  }
+  .skill-row:last-child{ border-bottom:none; }
+  .skill-name{ width: 140px; flex-shrink:0; font-size:13.5px; font-weight:600; }
+  .skill-bar-track{ flex:1; height:8px; background: var(--surface-2); border-radius:4px; overflow:hidden; }
+  .skill-bar-fill{ height:100%; background: linear-gradient(90deg, var(--teal), var(--accent)); border-radius:4px; }
+  .skill-level{ font-family: var(--mono); width:38px; text-align:right; font-size:12.5px; color: var(--text-muted); }
+  .skill-log-btn{ font-family: var(--mono); font-size:11px; color: var(--teal); background:none; border:1px solid var(--border); padding:4px 8px; border-radius:6px; }
+  .skill-log-btn:hover{ border-color: var(--teal); }
+
+  /* ---------- GitHub ---------- */
+  .gh-profile{ display:flex; gap:16px; align-items:center; }
+  .gh-profile img{ width:56px; height:56px; border-radius:50%; border:1px solid var(--border); }
+  .gh-profile .name{ font-weight:700; font-size:15px; }
+  .gh-profile .login{ font-family: var(--mono); font-size:12px; color: var(--teal); }
+  .gh-stats{ display:flex; gap:22px; margin-top:14px; }
+  .gh-stats div .n{ font-family: var(--mono); font-weight:700; font-size:16px; }
+  .gh-stats div .l{ font-size:11px; color: var(--text-muted); }
+
+  .heatmap{ display:grid; grid-template-columns: repeat(12, 1fr); gap:3px; margin-top:14px; }
+  .heat-col{ display:grid; grid-template-rows: repeat(7, 1fr); gap:3px; }
+  .heat-cell{ width:100%; aspect-ratio:1; border-radius:2px; background: var(--surface-2); }
+
+  .event-item{ display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:12.5px; }
+  .event-item:last-child{ border-bottom:none; }
+  .event-item .what{ color: var(--text); }
+  .event-item .when{ color: var(--text-muted); font-family: var(--mono); font-size:11px; white-space:nowrap; }
+
+  /* ---------- Goals ---------- */
+  .goal-card{ border: 1px solid var(--border); border-radius: var(--radius); padding:16px 18px; margin-bottom:14px; }
+  .goal-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .goal-title{ font-weight:600; font-size:14.5px; }
+  .goal-target{ font-size:11.5px; color: var(--text-muted); font-family: var(--mono); margin-top:2px; }
+  .streak-badge{ font-family: var(--mono); font-size:12px; color: var(--accent); white-space:nowrap; }
+  .week-grid{ display:flex; gap:3px; margin-top:12px; flex-wrap:wrap; }
+  .day-cell{ width:16px; height:16px; border-radius:3px; background: var(--surface-2); }
+  .day-cell.done{ background: var(--green); }
+  .day-cell.today{ box-shadow: 0 0 0 1.5px var(--accent) inset; cursor:pointer; }
+  .day-cell.today:hover{ filter:brightness(1.2); }
+
+  .toast{
+    position:fixed; bottom:22px; right:22px;
+    background: var(--surface-2); border:1px solid var(--border);
+    padding:10px 16px; border-radius:8px; font-size:13px;
+    font-family: var(--mono);
+    opacity:0; transform: translateY(8px);
+    transition: all .25s; pointer-events:none; z-index:50;
+  }
+  .toast.show{ opacity:1; transform:none; }
+
+  .chart-wrap{ position:relative; height: 220px; margin-top:10px; }
+  .flex-between{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+
+  @media (max-width: 800px){
+    body{ flex-direction:column; }
+    .sidebar{ width:100%; flex-direction:row; align-items:center; padding:14px 16px; overflow-x:auto; height:auto; }
+    .brand{ padding:0; margin-right:auto; }
+    .brand .tagline{ display:none; }
+    .nav{ flex-direction:row; }
+    .sidebar-footer{ display:none; }
+    .main{ padding: 20px; }
+    .stat-grid{ grid-template-columns: repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="logo">Skill<span>Orbit</span></div>
+      <div class="tagline">$ git log --author=you --stat</div>
+    </div>
+    <div class="nav" id="nav">
+      <button class="nav-item active" data-view="dashboard"><span class="bullet">●</span>dashboard</button>
+      <button class="nav-item" data-view="journal"><span class="bullet">●</span>journal</button>
+      <button class="nav-item" data-view="skills"><span class="bullet">●</span>skills</button>
+      <button class="nav-item" data-view="github"><span class="bullet">●</span>github</button>
+      <button class="nav-item" data-view="goals"><span class="bullet">●</span>goals</button>
+    </div>
+    <div class="sidebar-footer">
+      <button class="ghost-btn" id="exportBtn">↓ export data (.json)</button>
+      <button class="ghost-btn" id="importBtn">↑ import data (.json)</button>
+      <input type="file" id="importFile" accept="application/json" style="display:none">
+    </div>
+  </nav>
+
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <section class="view active" id="view-dashboard">
+      <div class="view-header">
+        <h1>Dashboard</h1>
+        <p>An overview of your growth log.</p>
+      </div>
+      <div class="stat-grid" id="statGrid"></div>
+      <div class="dash-grid">
+        <div class="card">
+          <p class="section-title">Recent commits</p>
+          <div id="recentCommits"></div>
+        </div>
+        <div class="card">
+          <p class="section-title">Top skills</p>
+          <div id="topSkills"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- JOURNAL -->
+    <section class="view" id="view-journal">
+      <div class="view-header">
+        <h1>Journal</h1>
+        <p>Log what you built, learned, or fixed today. Every entry is a commit.</p>
+      </div>
+      <div class="card">
+        <div class="form-grid">
+          <div class="row3">
+            <div>
+              <label for="jDate">Date</label>
+              <input type="date" id="jDate">
+            </div>
+            <div>
+              <label for="jTime">Time spent (min)</label>
+              <input type="number" id="jTime" min="0" placeholder="60">
+            </div>
+            <div>
+              <label for="jMood">Mood</label>
+              <select id="jMood">
+                <option value="great">🔥 Great</option>
+                <option value="okay" selected>🙂 Okay</option>
+                <option value="rough">😩 Rough</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label for="jTitle">Title</label>
+            <input type="text" id="jTitle" placeholder="Fixed the race condition in the queue worker">
+          </div>
+          <div>
+            <label for="jBody">Notes</label>
+            <textarea id="jBody" placeholder="What did you work on? What did you learn or get stuck on?"></textarea>
+          </div>
+          <div>
+            <label for="jTags">Tags (comma separated)</label>
+            <input type="text" id="jTags" placeholder="debugging, backend, postgres">
+          </div>
+          <div><button class="btn" id="addEntryBtn">commit entry →</button></div>
+        </div>
+      </div>
+      <div id="journalList"></div>
+    </section>
+
+    <!-- SKILLS -->
+    <section class="view" id="view-skills">
+      <div class="view-header">
+        <h1>Skills</h1>
+        <p>Track proficiency and watch it climb over time.</p>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="row3">
+          <div>
+            <label for="sName">Skill name</label>
+            <input type="text" id="sName" placeholder="TypeScript">
+          </div>
+          <div>
+            <label for="sLevel">Starting level (0–100)</label>
+            <input type="number" id="sLevel" min="0" max="100" placeholder="40">
+          </div>
+          <div style="display:flex; align-items:flex-end;">
+            <button class="btn" id="addSkillBtn" style="width:100%;">add skill</button>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px;" id="skillListCard">
+        <p class="section-title">Current levels</p>
+        <div id="skillList"></div>
+      </div>
+      <div class="dash-grid">
+        <div class="card">
+          <p class="section-title">Level comparison</p>
+          <div class="chart-wrap"><canvas id="skillBarChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="flex-between">
+            <p class="section-title" style="margin:0;">Growth over time</p>
+            <select id="skillHistorySelect" style="width:auto; padding:4px 8px; font-size:12px;"></select>
+          </div>
+          <div class="chart-wrap"><canvas id="skillLineChart"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GITHUB -->
+    <section class="view" id="view-github">
+      <div class="view-header">
+        <h1>GitHub Activity</h1>
+        <p>Pull in your real public activity from GitHub.</p>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="row">
+          <div>
+            <label for="ghUsername">GitHub username</label>
+            <input type="text" id="ghUsername" placeholder="octocat">
+          </div>
+          <div style="display:flex; align-items:flex-end; gap:8px;">
+            <button class="btn" id="ghConnectBtn">fetch activity →</button>
+          </div>
+        </div>
+        <p id="ghError" style="color:var(--red); font-size:12.5px; margin:10px 0 0; display:none;"></p>
+      </div>
+      <div id="ghContent"></div>
+    </section>
+
+    <!-- GOALS -->
+    <section class="view" id="view-goals">
+      <div class="view-header">
+        <h1>Goals</h1>
+        <p>Set a goal, check in daily, keep the streak alive.</p>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="row">
+          <div>
+            <label for="gTitle">Goal</label>
+            <input type="text" id="gTitle" placeholder="Ship a side project every month">
+          </div>
+          <div>
+            <label for="gTarget">Target date (optional)</label>
+            <input type="date" id="gTarget">
+          </div>
+        </div>
+        <div style="margin-top:12px;"><button class="btn" id="addGoalBtn">add goal</button></div>
+      </div>
+      <div id="goalList"></div>
+    </section>
+
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- State ---------------- */
+  const DEFAULT_STATE = { entries: [], skills: [], goals: [], githubUsername: '' };
+  let state = structuredClone(DEFAULT_STATE);
+  let skillCharts = { bar: null, line: null };
+
+  async function loadState(){
+    try{
+      const raw = localStorage.getItem('skillorbit-state');
+      if(raw){
+        const parsed = JSON.parse(raw);
+        state = Object.assign(structuredClone(DEFAULT_STATE), parsed);
+      }
+    }catch(e){
+      state = structuredClone(DEFAULT_STATE);
+    }
+  }
+
+  async function saveState(){
+    try{
+      localStorage.setItem('skillorbit-state', JSON.stringify(state));
+    }catch(e){
+      showToast('Could not save — storage error');
+      console.error(e);
+    }
+  }
+
+  /* ---------------- Utilities ---------------- */
+  function uid(){ return Math.random().toString(36).slice(2,9); }
+
+  function shortHash(str){
+    let h = 0;
+    for(let i=0;i<str.length;i++){ h = (h * 31 + str.charCodeAt(i)) | 0; }
+    return (h >>> 0).toString(16).padStart(7,'0').slice(0,7);
+  }
+
+  function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+  function formatDate(d){
+    if(!d) return '';
+    const dt = new Date(d + 'T00:00:00');
+    return dt.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+  }
+
+  function daysBetween(a,b){
+    return Math.round((new Date(b) - new Date(a)) / 86400000);
+  }
+
+  let toastTimer;
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
+  }
+
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  /* ---------------- Navigation Fix ---------------- */
+  document.getElementById('nav').addEventListener('click', (e)=>{
+    const btn = e.target.closest('.nav-item');
+    if(!btn) return;
+    document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById('view-' + btn.dataset.view).classList.add('active');
+  });
+
+  /* ---------------- Dashboard ---------------- */
+  function currentStreak(){
+    const dates = [...new Set(state.entries.map(e=>e.date))].sort().reverse();
+    if(dates.length === 0) return 0;
+    let streak = 0;
+    const diff = daysBetween(dates[0], todayStr());
+    if(diff > 1) return 0;
+    
+    let expected = dates[0];
+    for(const d of dates){
+      if(d === expected){
+        streak++;
+        const prev = new Date(expected + 'T00:00:00');
+        prev.setDate(prev.getDate()-1);
+        expected = prev.toISOString().slice(0,10);
+      } else break;
+    }
+    return streak;
+  }
+
+  function renderDashboard(){
+    const grid = document.getElementById('statGrid');
+    const firstDate = state.entries.length ? state.entries.map(e=>e.date).sort()[0] : null;
+    const daysTracking = firstDate ? daysBetween(firstDate, todayStr()) + 1 : 0;
+
+    grid.innerHTML = `
+      <div class="stat-card"><div class="num">${state.entries.length}</div><div class="label">journal entries</div></div>
+      <div class="stat-card"><div class="num">${currentStreak()}</div><div class="label">day streak</div></div>
+      <div class="stat-card"><div class="num">${state.skills.length}</div><div class="label">skills tracked</div></div>
+      <div class="stat-card"><div class="num">${daysTracking}</div><div class="label">days tracking</div></div>
+    `;
+
+    const recentWrap = document.getElementById('recentCommits');
+    const recent = [...state.entries].sort((a,b)=> b.date.localeCompare(a.date) || b.createdAt - a.createdAt).slice(0,4);
+    if(recent.length === 0){
+      recentWrap.innerHTML = `<div class="empty-state"><div class="glyph">∅</div>No commits yet.</div>`;
+    } else {
+      recentWrap.innerHTML = `<div class="timeline">` + recent.map(entryToCommitHtml).join('') + `</div>`;
+    }
+
+    const topWrap = document.getElementById('topSkills');
+    const top = [...state.skills].sort((a,b)=> b.level - a.level).slice(0,5);
+    if(top.length === 0){
+      topWrap.innerHTML = `<div class="empty-state"><div class="glyph">∅</div>No skills yet.</div>`;
+    } else {
+      topWrap.innerHTML = top.map(s => `
+        <div class="skill-row" style="border-bottom:1px solid var(--border);">
+          <div class="skill-name">${escapeHtml(s.name)}</div>
+          <div class="skill-bar-track"><div class="skill-bar-fill" style="width:${s.level}%"></div></div>
+          <div class="skill-level">${s.level}</div>
+        </div>
+      `).join('');
+    }
+  }
+
+  /* ---------------- Journal ---------------- */
+  document.getElementById('jDate').value = todayStr();
+
+  function entryToCommitHtml(e){
+    const words = (e.content || '').trim().split(/\s+/).filter(Boolean).length;
+    const moodGlyph = { great:'🔥', okay:'🙂', rough:'😩' }[e.mood] || '';
+    return `
+      <div class="commit">
+        <div class="commit-head">
+          <span class="commit-hash">#${e.hash}</span>
+          <span class="commit-date">${formatDate(e.date)}</span>
+          <span class="commit-date">${moodGlyph}</span>
+          ${e.timeSpent ? `<span class="commit-date">${e.timeSpent}min</span>` : ''}
+        </div>
+        <div class="commit-title">${escapeHtml(e.title)}</div>
+        ${e.content ? `<div class="commit-body">${escapeHtml(e.content)}</div>` : ''}
+        <div class="diffstat"><span class="plus">+${words}</span> words</div>
+        <div class="commit-actions"><button data-id="${e.id}" class="delEntry">delete</button></div>
+      </div>
+    `;
+  }
+
+  function renderJournal(){
+    const wrap = document.getElementById('journalList');
+    const sorted = [...state.entries].sort((a,b)=> b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+    if(sorted.length === 0){
+      wrap.innerHTML = `<div class="empty-state"><div class="glyph">∅</div>Nothing committed yet.</div>`;
+      return;
+    }
+    wrap.innerHTML = `<div class="timeline">` + sorted.map(entryToCommitHtml).join('') + `</div>`;
+    wrap.querySelectorAll('.delEntry').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        state.entries = state.entries.filter(e=>e.id !== btn.dataset.id);
+        await saveState();
+        renderAll();
+        showToast('Entry deleted');
+      });
+    });
+  }
+
+  document.getElementById('addEntryBtn').addEventListener('click', async ()=>{
+    const title = document.getElementById('jTitle').value.trim();
+    if(!title){ showToast('Give the entry a title first'); return; }
+    const date = document.getElementById('jDate').value || todayStr();
+    const content = document.getElementById('jBody').value.trim();
+    const tags = document.getElementById('jTags').value.split(',').map(t=>t.trim()).filter(Boolean);
+    const timeSpent = parseInt(document.getElementById('jTime').value, 10) || 0;
+    const mood = document.getElementById('jMood').value;
+    const createdAt = Date.now();
+
+    state.entries.push({
+      id: uid(), date, title, content, tags, timeSpent, mood, createdAt,
+      hash: shortHash(title + date + createdAt)
+    });
+    await saveState();
+    document.getElementById('jTitle').value = '';
+    document.getElementById('jBody').value = '';
+    document.getElementById('jTags').value = '';
+    document.getElementById('jTime').value = '';
+    document.getElementById('jDate').value = todayStr();
+    renderAll();
+    showToast('Entry committed');
+  });
+
+  /* ---------------- Skills ---------------- */
+  document.getElementById('addSkillBtn').addEventListener('click', async ()=>{
+    const name = document.getElementById('sName').value.trim();
+    let level = parseInt(document.getElementById('sLevel').value, 10);
+    if(!name){ showToast('Name the skill first'); return; }
+    if(isNaN(level)) level = 0;
+    level = Math.max(0, Math.min(100, level));
+    state.skills.push({ id: uid(), name, level, history: [{ date: todayStr(), level }] });
+    await saveState();
+    document.getElementById('sName').value = '';
+    document.getElementById('sLevel').value = '';
+    renderAll();
+    showToast('Skill added');
+  });
+
+  function renderSkills(){
+    const wrap = document.getElementById('skillList');
+    if(state.skills.length === 0){
+      wrap.innerHTML = `<div class="empty-state">No skills yet.</div>`;
+    } else {
+      wrap.innerHTML = state.skills.map(s => `
+        <div class="skill-row">
+          <div class="skill-name">${escapeHtml(s.name)}</div>
+          <div class="skill-bar-track"><div class="skill-bar-fill" style="width:${s.level}%"></div></div>
+          <div class="skill-level">${s.level}</div>
+          <button class="skill-log-btn" data-id="${s.id}">log today</button>
+        </div>
+      `).join('');
+      wrap.querySelectorAll('.skill-log-btn').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          const skill = state.skills.find(s=>s.id === btn.dataset.id);
+          const input = prompt(`New level for "${skill.name}" (0-100):`, skill.level);
+          if(input === null) return;
+          let level = parseInt(input, 10);
+          if(isNaN(level)) return;
+          level = Math.max(0, Math.min(100, level));
+          skill.level = level;
+          const today = todayStr();
+          const existing = skill.history.find(h=>h.date === today);
+          if(existing) existing.level = level; else skill.history.push({ date: today, level });
+          await saveState();
+          renderAll();
+        });
+      });
+    }
+    renderSkillCharts();
+  }
+
+  function renderSkillCharts(){
+    const barCtx = document.getElementById('skillBarChart');
+    const lineCtx = document.getElementById('skillLineChart');
+    const select = document.getElementById('skillHistorySelect');
+    if(skillCharts.bar) skillCharts.bar.destroy();
+    if(skillCharts.line) skillCharts.line.destroy();
+    if(state.skills.length === 0) return;
+
+    skillCharts.bar = new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: state.skills.map(s=>s.name),
+        datasets: [{ data: state.skills.map(s=>s.level), backgroundColor: '#e8a33d' }]
+      },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display:false } } }
+    });
+
+    const prevVal = select.value;
+    select.innerHTML = state.skills.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+    if(prevVal && state.skills.find(s=>s.id === prevVal)) select.value = prevVal;
+
+    function drawLine(){
+      const skill = state.skills.find(s=>s.id === select.value) || state.skills[0];
+      if(skillCharts.line) skillCharts.line.destroy();
+      skillCharts.line = new Chart(lineCtx, {
+        type: 'line',
+        data: {
+          labels: skill.history.map(h=>formatDate(h.date)),
+          datasets: [{ data: skill.history.map(h=>h.level), borderColor:'#4fb3a9', fill:true, tension: 0.3 }]
+        },
+        options: { responsive:true, maintainAspectRatio:false, plugins: { legend: { display:false } } }
+      });
+    }
+    drawLine();
+    select.onchange = drawLine;
+  }
+
+  /* ---------------- GitHub Logic ---------------- */
+  document.getElementById('ghConnectBtn').addEventListener('click', async ()=>{
+    const username = document.getElementById('ghUsername').value.trim();
+    if(!username){ showToast('Enter username'); return; }
+    const btn = document.getElementById('ghConnectBtn');
+    const errEl = document.getElementById('ghError');
+    btn.textContent = 'fetching...'; btn.disabled = true;
+    errEl.style.display = 'none';
+    try{
+      const [uResp, eResp] = await Promise.all([
+        fetch(`https://api.github.com/users/${username}`),
+        fetch(`https://api.github.com/users/${username}/events/public?per_page=100`)
+      ]);
+      if(!uResp.ok) throw new Error('User not found');
+      const user = await uResp.json();
+      const events = await eResp.json();
+      state.githubUsername = username;
+      await saveState();
+      renderGithub(user, Array.isArray(events) ? events : []);
+    } catch(err){ 
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    } finally{ 
+      btn.textContent = 'fetch activity →'; btn.disabled = false; 
+    }
+  });
+
+  function describeEvent(ev){
+    const repo = ev.repo ? ev.repo.name : '';
+    switch(ev.type){
+      case 'PushEvent': return `Pushed ${ev.payload?.commits?.length || 0} commit(s) to ${repo}`;
+      case 'CreateEvent': return `Created ${ev.payload?.ref_type || 'repo'} in ${repo}`;
+      default: return `${ev.type.replace('Event','')} in ${repo}`;
+    }
+  }
+
+  function renderGithub(user, events){
+    const wrap = document.getElementById('ghContent');
+    const counts = {};
+    events.forEach(ev=>{
+      const d = ev.created_at?.slice(0,10);
+      if(d) counts[d] = (counts[d] || 0) + 1;
+    });
+
+    const cells = [];
+    const today = new Date();
+    for(let i=83;i>=0;i--){
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0,10);
+      cells.push({ date: key, count: counts[key] || 0 });
+    }
+    const columns = [];
+    for(let i=0;i<cells.length;i+=7){ columns.push(cells.slice(i,i+7)); }
+
+    function heatColor(c){
+      if(c === 0) return 'var(--surface-2)';
+      if(c <= 2) return 'rgba(111,207,151,0.4)';
+      return '#6fcf97';
+    }
+
+    const heatmapHtml = columns.map(col => `
+      <div class="heat-col">
+        ${col.map(c => `<div class="heat-cell" title="${c.date}: ${c.count}" style="background:${heatColor(c.count)}"></div>`).join('')}
+      </div>
+    `).join('');
+
+    wrap.innerHTML = `
+      <div class="card" style="margin-bottom:16px;">
+        <div class="gh-profile">
+          <img src="${user.avatar_url}" alt="">
+          <div><div class="name">${escapeHtml(user.name || user.login)}</div><div class="login">@${user.login}</div></div>
+        </div>
+        <div class="gh-stats">
+          <div><div class="n">${user.public_repos}</div><div class="l">repos</div></div>
+          <div><div class="n">${user.followers}</div><div class="l">followers</div></div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px;"><p class="section-title">Last 12 Weeks</p><div class="heatmap">${heatmapHtml}</div></div>
+      <div class="card"><p class="section-title">Recent Events</p>
+        ${events.slice(0,5).map(ev => `<div class="event-item"><span>${describeEvent(ev)}</span><span class="when">${formatDate(ev.created_at?.slice(0,10))}</span></div>`).join('')}
+      </div>
+    `;
+  }
+
+  /* ---------------- Goals ---------------- */
+  function renderGoals(){
+    const wrap = document.getElementById('goalList');
+    if(!state.goals.length){ wrap.innerHTML = '<div class="empty-state">No goals.</div>'; return; }
+    wrap.innerHTML = state.goals.map(g => {
+      const days = [];
+      const today = todayStr();
+      for(let i=27;i>=0;i--){
+        const d = new Date(); d.setDate(d.getDate()-i);
+        const key = d.toISOString().slice(0,10);
+        const done = g.checkins.includes(key);
+        days.push(`<div class="day-cell ${done?'done':''} ${key===today?'today':''}" data-goal="${g.id}" data-date="${key}"></div>`);
+      }
+      return `<div class="goal-card"><div class="goal-top"><div><div class="goal-title">${escapeHtml(g.title)}</div></div><button class="btn-outline btn-danger" data-del="${g.id}">remove</button></div><div class="week-grid">${days.join('')}</div></div>`;
+    }).join('');
+    
+    wrap.querySelectorAll('.day-cell.today').forEach(c => c.onclick = async ()=>{
+      const goal = state.goals.find(g=>g.id === c.dataset.goal);
+      const idx = goal.checkins.indexOf(c.dataset.date);
+      if(idx >= 0) goal.checkins.splice(idx,1); else goal.checkins.push(c.dataset.date);
+      await saveState(); renderAll();
+    });
+    wrap.querySelectorAll('[data-del]').forEach(b => b.onclick = async ()=>{
+      state.goals = state.goals.filter(g=>g.id !== b.dataset.del);
+      await saveState(); renderAll();
+    });
+  }
+
+  document.getElementById('addGoalBtn').onclick = async ()=>{
+    const title = document.getElementById('gTitle').value.trim();
+    if(!title) return;
+    state.goals.push({ id: uid(), title, checkins: [], targetDate: document.getElementById('gTarget').value });
+    await saveState(); document.getElementById('gTitle').value = ''; renderAll();
+  };
+
+  /* ---------------- Init ---------------- */
+  function renderAll(){
+    renderDashboard(); renderJournal(); renderSkills(); renderGoals();
+  }
+
+  (async function init(){
+    await loadState();
+    renderAll();
+    if(state.githubUsername) {
+      document.getElementById('ghUsername').value = state.githubUsername;
+      document.getElementById('ghConnectBtn').click();
+    }
+  })();
+
+  // Export/Import
+  document.getElementById('exportBtn').onclick = () => {
+    const blob = new Blob([JSON.stringify(state)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'skillorbit.json'; a.click();
+  };
+  document.getElementById('importBtn').onclick = () => document.getElementById('importFile').click();
+  document.getElementById('importFile').onchange = (e) => {
+    const f = e.target.files[0]; if(!f) return;
+    const r = new FileReader(); r.onload = async () => {
+      state = JSON.parse(r.result); await saveState(); renderAll();
+    }; r.readAsText(f);
+  };
+})();
+</script>
+</body>
+</html>
