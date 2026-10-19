@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Library Management System – Browser Demo</title>
+<meta name="description" content="Browser demo of a Java + JDBC + MySQL Library Management System: issue, return, late fines and reports.">
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--text:#16181d;--muted:#5b6270;--line:#e3e6ee;--accent:#2f5bea;--accent-t:#fff;--ok:#157347;--bad:#b42318;--warn-bg:#fff7e0;--warn-line:#f1d27a}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#171a21;--text:#e8eaf0;--muted:#9aa3b2;--line:#2a2f3a;--accent:#6c8cff;--accent-t:#0f1115;--ok:#4cc38a;--bad:#ff7b72;--warn-bg:#2a2410;--warn-line:#6b5a1c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+main{max-width:980px;margin:0 auto;padding:18px 14px 40px}
+h1{font-size:1.4rem;margin:0 0 4px}
+h2{font-size:1.05rem;margin:0 0 10px}
+a{color:var(--accent)}
+.sub{color:var(--muted);margin:0 0 12px}
+.note{background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:10px;padding:10px 12px;margin:0 0 14px;font-size:.92rem}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tab{border:1px solid var(--line);background:var(--card);color:var(--text);padding:7px 14px;border-radius:999px;cursor:pointer;font:inherit}
+.tab[aria-selected=true]{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:.85rem}
+form,.row{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+label{display:flex;flex-direction:column;font-size:.82rem;color:var(--muted);gap:3px}
+input,select,button{font:inherit;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)}
+button.p{background:var(--accent);color:var(--accent-t);border-color:var(--accent);cursor:pointer}
+button.s{cursor:pointer;padding:4px 10px}
+#msg{min-height:1.4em;margin:0 0 12px;font-weight:600}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+.late{color:var(--bad)}
+ul{margin:0;padding-left:18px}
+.empty{color:var(--muted)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <h1>Library Management System</h1>
+  <p class="sub">Java · JDBC · MySQL &nbsp;|&nbsp; <a href="https://github.com/mohanprakash804/library-management-system">View source code on GitHub</a></p>
+  <p class="note"><strong>Demo only.</strong> This page is a browser simulation of the rules in my Java console application (14-day loan, maximum 3 books per member, Rs. 2 per day late fine). The real application runs in Java with a MySQL database; this page stores nothing and resets when you refresh.</p>
+
+  <div class="bar">
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <label>“Today” (change it to test late fines)<input type="date" id="today"></label>
+  </div>
+  <p id="msg" role="status" aria-live="polite"></p>
+  <div id="view"></div>
+</main>
+
+<script>
+const LOAN_DAYS = 14, MAX_LOANS = 3, FINE_PER_DAY = 2;
+const state = {
+  books: [
+    [1,'Core Java Volume I','Cay S. Horstmann','Programming',3],[2,'Effective Java','Joshua Bloch','Programming',2],
+    [3,'Head First SQL','Lynn Beighley','Database',2],[4,'Database System Concepts','Abraham Silberschatz','Database',2],
+    [5,'Digital Design','M. Morris Mano','Electronics',3],[6,'Microprocessor Architecture','Ramesh Gaonkar','Electronics',2],
+    [7,'Wings of Fire','A. P. J. Abdul Kalam','Biography',2],[8,'Clean Code','Robert C. Martin','Programming',1]
+  ].map(b => ({id:b[0],title:b[1],author:b[2],category:b[3],total:b[4],available:b[4]})),
+  members: [[1,'Arun Kumar','arun@example.com'],[2,'Divya S','divya@example.com'],[3,'Karthik R','karthik@example.com']]
+    .map(m => ({id:m[0],name:m[1],email:m[2]})),
+  loans: [], nextBook: 9, nextMember: 4, nextLoan: 1
+};
+let tab = 'Books', query = '';
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const iso = d => d.toISOString().slice(0,10);
+const today = () => $('#today').value || iso(new Date());
+const addDays = (s,n) => { const d = new Date(s+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return iso(d); };
+const daysBetween = (a,b) => Math.round((new Date(b+'T00:00:00Z') - new Date(a+'T00:00:00Z')) / 86400000);
+const book = id => state.books.find(b => b.id === id);
+const member = id => state.members.find(m => m.id === id);
+const active = () => state.loans.filter(l => !l.returned);
+
+function say(text, ok){ const m = $('#msg'); m.textContent = text; m.className = ok ? 'ok' : 'bad'; }
+
+/* ---- business rules (same as LoanDAO in the Java project) ---- */
+function issueBook(bookId, memberId){
+  const b = book(bookId), m = member(memberId);
+  if (!b) return say('Book not found.');
+  if (b.available <= 0) return say('No copies of this book are available right now.');
+  if (!m) return say('Member not found.');
+  const mine = active().filter(l => l.memberId === memberId);
+  if (mine.length >= MAX_LOANS) return say('Member already has '+MAX_LOANS+' books issued (limit reached).');
+  if (mine.some(l => l.bookId === bookId)) return say('Member already has a copy of this book.');
+  const t = today();
+  const loan = {id: state.nextLoan++, bookId, memberId, issued: t, due: addDays(t, LOAN_DAYS), returned: null, fine: 0};
+  state.loans.push(loan); b.available--;
+  say('Book issued. Loan ID '+loan.id+', due on '+loan.due+'.', true);
+}
+function returnBook(loanId){
+  const l = state.loans.find(x => x.id === loanId);
+  if (!l) return say('Loan not found.');
+  if (l.returned) return say('This book was already returned.');
+  const t = today(), late = Math.max(0, daysBetween(l.due, t));
+  l.returned = t; l.fine = late * FINE_PER_DAY; book(l.bookId).available++;
+  say(l.fine > 0 ? 'Book returned. Late fine to collect: Rs. '+l.fine.toFixed(2)+' ('+late+' days late x Rs. '+FINE_PER_DAY+').' : 'Book returned on time. No fine.', true);
+}
+
+/* ---- views ---- */
+function booksView(){
+  const q = query.toLowerCase();
+  const rows = state.books.filter(b => (b.title+b.author+b.category).toLowerCase().includes(q));
+  return `<div class="card"><h2>Books</h2>
+    <div class="row" style="margin-bottom:10px"><label>Search (title / author / category)<input id="q" value="${esc(query)}"></label></div>
+    <div class="scroll"><table><tr><th>ID</th><th>Title</th><th>Author</th><th>Category</th><th>Total</th><th>Available</th></tr>
+    ${rows.map(b => `<tr><td>${b.id}</td><td>${esc(b.title)}</td><td>${esc(b.author)}</td><td>${esc(b.category)}</td><td>${b.total}</td><td>${b.available}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">No books found.</td></tr>'}
+    </table></div></div>
+    <div class="card"><h2>Add a book</h2><form id="addBook">
+      <label>Title<input name="title" required></label><label>Author<input name="author" required></label>
+      <label>Category<input name="category" required></label><label>Copies<input name="copies" type="number" min="1" value="1" required></label>
+      <button class="p">Add book</button></form></div>`;
+}
+function membersView(){
+  return `<div class="card"><h2>Members</h2><div class="scroll"><table><tr><th>ID</th><th>Name</th><th>Email</th><th>Books issued</th></tr>
+    ${state.members.map(m => `<tr><td>${m.id}</td><td>${esc(m.name)}</td><td>${esc(m.email)}</td><td>${active().filter(l => l.memberId === m.id).length}</td></tr>`).join('')}
+    </table></div></div>
+    <div class="card"><h2>Add a member</h2><form id="addMember">
+      <label>Name<input name="name" required></label><label>Email<input name="email" type="email" required></label>
+      <button class="p">Add member</button></form></div>`;
+}
+function loansView(){
+  const t = today(), list = active();
+  return `<div class="card"><h2>Issue a book</h2><form id="issue">
+      <label>Book<select name="book">${state.books.map(b => `<option value="${b.id}">${b.id} – ${esc(b.title)} (${b.available} available)</option>`).join('')}</select></label>
+      <label>Member<select name="member">${state.members.map(m => `<option value="${m.id}">${m.id} – ${esc(m.name)}</option>`).join('')}</select></label>
+      <button class="p">Issue book</button></form></div>
+    <div class="card"><h2>Currently issued books</h2><div class="scroll"><table><tr><th>Loan</th><th>Book</th><th>Member</th><th>Issued</th><th>Due</th><th>Overdue</th><th></th></tr>
+    ${list.map(l => { const late = Math.max(0, daysBetween(l.due, t)); return `<tr><td>${l.id}</td><td>${esc(book(l.bookId).title)}</td><td>${esc(member(l.memberId).name)}</td><td>${l.issued}</td><td>${l.due}</td><td class="${late ? 'late' : ''}">${late ? late+' day(s)' : '–'}</td><td><button class="s" data-return="${l.id}">Return</button></td></tr>`; }).join('') || '<tr><td colspan="7" class="empty">No books are issued.</td></tr>'}
+    </table></div></div>`;
+}
+function reportsView(){
+  const count = key => { const m = {}; state.loans.forEach(l => { const k = key(book(l.bookId)); m[k] = (m[k]||0)+1; }); return Object.entries(m).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0])); };
+  const list = a => a.length ? '<ul>'+a.map(x => `<li>${esc(x[0])} – ${x[1]}</li>`).join('')+'</ul>' : '<span class="empty">No loan data yet. Issue a book first.</span>';
+  const t = today(), over = active().filter(l => l.due < t);
+  return `<div class="card"><h2>Most borrowed books (top 5)</h2>${list(count(b => b.title).slice(0,5))}</div>
+    <div class="card"><h2>Loans per category</h2>${list(count(b => b.category))}</div>
+    <div class="card"><h2>Overdue books</h2>${over.length ? '<ul>'+over.map(l => `<li>${esc(book(l.bookId).title)} – ${esc(member(l.memberId).name)} (${daysBetween(l.due,t)} day(s) late)</li>`).join('')+'</ul>' : '<span class="empty">None.</span>'}</div>`;
+}
+
+const views = {Books: booksView, Members: membersView, 'Issue / Return': loansView, Reports: reportsView};
+function render(){
+  $('#tabs').innerHTML = Object.keys(views).map(k => `<button class="tab" role="tab" aria-selected="${k===tab}" data-tab="${esc(k)}">${esc(k)}</button>`).join('');
+  $('#view').innerHTML = views[tab]();
+  const q = $('#q'); if (q) q.addEventListener('input', e => { query = e.target.value; const pos = e.target.selectionStart; render(); const n = $('#q'); n.focus(); n.setSelectionRange(pos,pos); });
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-tab]'); if (t){ tab = t.dataset.tab; $('#msg').textContent=''; render(); return; }
+  const r = e.target.closest('[data-return]'); if (r){ returnBook(+r.dataset.return); render(); }
+});
+document.addEventListener('submit', e => {
+  e.preventDefault(); const f = e.target, d = Object.fromEntries(new FormData(f));
+  if (f.id === 'issue') issueBook(+d.book, +d.member);
+  if (f.id === 'addBook'){ const n = Math.max(1, parseInt(d.copies,10)||1); state.books.push({id:state.nextBook++,title:d.title.trim(),author:d.author.trim(),category:d.category.trim(),total:n,available:n}); say('Book added.', true); }
+  if (f.id === 'addMember'){ if (state.members.some(m => m.email.toLowerCase() === d.email.toLowerCase())) return say('Not allowed: this email already exists.'); state.members.push({id:state.nextMember++,name:d.name.trim(),email:d.email.trim()}); say('Member added.', true); }
+  render();
+});
+$('#today').value = iso(new Date());
+$('#today').addEventListener('change', render);
+render();
+</script>
+</body>
+</html>
